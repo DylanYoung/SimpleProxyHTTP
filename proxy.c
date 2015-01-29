@@ -60,12 +60,12 @@ int main(int argc, char *argv[]) {
     socklen_t clilen;
     struct sockaddr_in serv_addr;
     struct sockaddr_in cli_addr;
-    char inbuffer[2048];
-    char outbuffer[30720];
+    char inbuffer[80000];
+    char outbuffer[200000];
     int n = 0; 
                                                                   
-    bzero(inbuffer,2048);                           // zero out input buffer
-    bzero(outbuffer,30720);                         // set up response buffer
+    bzero(inbuffer,80000);                           // zero out input buffer
+    bzero(outbuffer,200000);                         // set up response buffer
     bzero((char *) &serv_addr, sizeof(serv_addr));  // zero out server address
 
     if (argc < 2)
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
             close(sockfd);
             if (newsockfd < 0)
                  error("ERROR on accept");
-            n = read(newsockfd,inbuffer,2048); 
+            n = read(newsockfd,inbuffer,80000); 
             if (n < 0)
                 error("ERROR reading from socket");
         
@@ -114,13 +114,15 @@ int main(int argc, char *argv[]) {
             int length = (hostend - hostbegin) + 2;            //                                     
             char * host = malloc(sizeof(char)*(length));       //                                          
             bzero(host,length);                                //
-            *hostend = 0;                                      //
-            strcat(inbuffer,"\r\n");                           //                 
+                                                               //
+                                                               //                 
             strlcpy(host, hostbegin, length-1);                //                                 
             char * portstr = strstr(host, ":");                //                                 
-            if (portstr == NULL)                               //                  
-                portstr = "80";                                //                 
-            else{                                              //   
+            if (portstr == NULL)
+            {
+                portstr = malloc(sizeof(char)*3);              //                  
+                strcpy(portstr, "80\0");                       //                 
+            }else{                                             //   
                 *portstr = 0;                                  //                 
                 portstr += 1;                                  //               
             }                                                  //
@@ -130,11 +132,11 @@ int main(int argc, char *argv[]) {
                 *toRemove = 0;                                 //                
             length = strlen(inbuffer)+                         //                        
                 strlen(toRemove)+1;                            //                     
-            char * request = malloc(length);                   //                              
-            bzero(request, length);                            //                     
+            char * request = malloc(80000);                    //                              
+            bzero(request, 80000);                             //                     
             strcpy(request, inbuffer);                         //                        
             strcat(request, toRemove);                         //                        
-            strcat(request, "\r\n");                           //                      
+            //strcat(request, "\r\n");                           //                      
             char * protocol = strstr(request, "HTTP/1.1");     //                                            
             if (protocol != NULL)                              //                   
                 *(protocol+7) = '0';                           //                      
@@ -173,25 +175,31 @@ int main(int argc, char *argv[]) {
                 < 0)                                           //              
                 error("ERROR connecting");                     //                                    
 ////////////// End Client Socket ////////////////////////////////
+            free(portstr);
             //////Debugging/////////
             //bzero(request, length);
             //sprintf(request, "GET /~c_meijer/assign4/ HTTP/1.0\r\nHost: 140.184.193.164\r\n\r\n");
             //printf("Request: [%s]",request);
             /////////////////////////////
 
-            n = write(websock, request, strlen(request+1)); 
+            n = write(websock, request, strlen(request)+1); 
             printf("Number of Bytes Sent: %i\n", n);
+            printf("Expected: %lu\n", strlen(request));
             if (n < 0)
                 error("ERROR sending request"); 
             //while(1)
             //{                 
-            n = read(websock,outbuffer,strlen(outbuffer+1));            
+            n = read(websock,outbuffer,199999);            
             if (n < 0)
                 error("ERROR getting response");
+            close(websock); 
             printf("Number of Bytes Received: %i\n", n);
             printf("Received: [%s]\n",outbuffer);
-            //}                               
-            close(newsockfd);                                                                         
+
+            //}    
+            n = write(newsockfd, outbuffer, 200000); 
+            printf("Number of Bytes to Client: %i\n", n);                   
+            close(newsockfd);                                                                        
             return EXIT_SUCCESS;                                                   
         } else if (pID < 0)
             error("Error on forking");
