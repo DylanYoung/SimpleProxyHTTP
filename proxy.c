@@ -1,13 +1,13 @@
 /*
- ============================================================================
- Name        : server.c
+ =====================================================================
+ Name        : proxy.c
  Author      : open source
- Version     :
- Copyright   : no copyright
- Description : A simple server in the internet domain using TCP
+ Version     : 0.0.1
+ License     : MIT
+ Description : A simple proxy in the internet domain using TCP
                The port number is passed as an argument.
 
- ============================================================================
+ =====================================================================
  */
 
 #include <stdio.h>
@@ -26,68 +26,71 @@ void error(const char *msg) {
 
 int proxyclient(char * host, char * portstr)
 {
-    int sockfd, portno, n;
-    struct sockaddr_in serv_addr;
+    int websock=0, portno=0, n=0;
+    struct sockaddr_in host_addr;
     struct hostent *server;
-    bzero((char *) &serv_addr, sizeof(serv_addr));
+    bzero((char *) &host_addr, sizeof(host_addr));
 
-    server = gethostbyname(host);                                     // translate the host name into an address
+    server = gethostbyname(host);              // translate the host name into an address
     if (server == NULL)
         error("ERROR, no such host\n");
-    portno = atoi(portstr);                                              // get the port number
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);                            // create a generic socket
-    if (sockfd < 0)
+    portno = atoi(portstr);                    // get the port number
+    websock = socket(AF_INET, SOCK_STREAM, 0); // create a generic socket
+    if (websock < 0)
         error("ERROR opening socket");
-    serv_addr.sin_family = AF_INET;                                      // it's an internet type
-    bcopy((char *)server->h_addr,                                        // make sure we connect with the IP not name
-        (char *)&serv_addr.sin_addr.s_addr,
+    host_addr.sin_family = AF_INET;            // it's an internet type
+    bcopy((char *)server->h_addr,              // make sure we connect with the IP not name
+        (char *)&host_addr.sin_addr.s_addr,
         server->h_length);
-    serv_addr.sin_port = htons(portno);                                  // port numbers should be in network byte order
-    if (connect(sockfd,                                                  // connect socket to
-        (struct sockaddr *) &serv_addr,                                  // the server address (bind)
-        sizeof(serv_addr))                                               // where the server address structure is this length
+    host_addr.sin_port = htons(portno);        // port numbers should be in network byte order
+    if (connect(websock,                       // connect socket to
+        (struct sockaddr *) &host_addr,        // the server address (bind)
+        sizeof(host_addr))                     // where the server address structure is this length
         < 0)
         error("ERROR connecting");
-    return sockfd;
+    return websock;
 }
 
 int main(int argc, char *argv[]) {
+////// Setup Proxy to Listen for Connections /////////////
     int sockfd = 0;
     int newsockfd = 0;
-    int websocket = 0;
+    //int websock = 0;
     int portno = 0;
     socklen_t clilen;
     struct sockaddr_in serv_addr;
     struct sockaddr_in cli_addr;
     char inbuffer[2048];
-    char outbuffer[10240];
-    int n;
-    n = 0;                                                              // in C you should initialize all vars for safety
-    bzero(inbuffer,2048);                                                // zero out input buffer
-    bzero(outbuffer,256);                                      // set up response buffer
-    bzero((char *) &serv_addr, sizeof(serv_addr));                      // zero out server address
+    char outbuffer[30720];
+    int n = 0; 
+                                                                  
+    bzero(inbuffer,2048);                           // zero out input buffer
+    bzero(outbuffer,30720);                         // set up response buffer
+    bzero((char *) &serv_addr, sizeof(serv_addr));  // zero out server address
+
     if (argc < 2)
         error("ERROR, no port provided\n");
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);                           // create a generic socket
-    if (sockfd < 0)                                                     // socket create failed
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);       // create a generic socket
+    if (sockfd < 0)                                 // socket create failed
         error("ERROR opening socket");
-    portno = atoi(argv[1]);                                             // translate the only parameter into a port number
-    serv_addr.sin_family = AF_INET;                                     // set parameters - standard internet
-    serv_addr.sin_addr.s_addr = INADDR_ANY;                             //
-    serv_addr.sin_port = htons(portno);                                 // and the port number into network byte order
-    if (bind(sockfd,                                                    // connect up the new socket
-            (struct sockaddr *) &serv_addr,                             // to the (localhost) address to bind to
-            sizeof(serv_addr))                                          // size of the address structure
-            < 0)                                                        // check response code
+    portno = atoi(argv[1]);                         // translate the only parameter into a port number
+    
+    serv_addr.sin_family = AF_INET;                 // set parameters - standard internet
+    serv_addr.sin_addr.s_addr = INADDR_ANY;          
+    serv_addr.sin_port = htons(portno);             // and the port number into network byte order
+    if (bind(sockfd, (struct sockaddr *) &serv_addr,// to the (localhost) address to bind to
+            sizeof(serv_addr))                      // size of the address structure
+            < 0)                                    // check response code
         error("ERROR on binding");
+////// End Setup /////////////////////////////////////////
+    
     while(1)
     {
         listen(sockfd,5);
-                                                  // block and wait for a new connection from a client
-
-        clilen = sizeof(cli_addr);                                          // get address of client
-        newsockfd = accept(sockfd,                                          // translate the connection request into a new socket
-                        (struct sockaddr *) &cli_addr,                          // you would normally leave the listener listening
+                                                       // block and wait for a new connection from a client
+        clilen = sizeof(cli_addr);                     // get address of client
+        newsockfd = accept(sockfd,                     // translate the connection request into a new socket
+                        (struct sockaddr *) &cli_addr, 
                         &clilen);
         pid_t pID = fork();
         if (pID == 0)
@@ -95,69 +98,105 @@ int main(int argc, char *argv[]) {
             close(sockfd);
             if (newsockfd < 0)
                  error("ERROR on accept");
-            //char * temp = malloc(sizeof(char)*2048);
-            //while (strstr(temp, "\r\n\r\n") == NULL)
-            //{
-                n = read(newsockfd,inbuffer,2048); 
-                //strcat(temp, inbuffer);                                  // get the string sent from the client
-                if (n < 0)
-                    error("ERROR reading from socket");
-            //}
-            //strcpy(inbuffer, temp);
-            //free(temp);
-            // Parsing //////////////////////////////////////////                                                 
+            n = read(newsockfd,inbuffer,2048); 
+            if (n < 0)
+                error("ERROR reading from socket");
+        
+////////////// Parsing //////////////////////////////////////////                                                 
             char * hostbegin = strstr(inbuffer, "Host:")+ 6;   //                                              
-            char * hostend = strstr(hostbegin, "\r\n");        //                                         
-            //printf("Begin: %s\nEnd: %s", hostbegin, hostend);//                                                  
+            char * hostend = strstr(hostbegin, "\r\n");        //                                                                                           
             if (strstr(inbuffer, "GET") == NULL                //                                  
-                || hostbegin == NULL || hostend == NULL)       //                                          
-                error("ERROR: malformed GET request");         //                                        
+                || hostbegin == NULL || hostend == NULL)       //
+            {       //                                         // 
+                close(newsockfd);                              //
+                error("ERROR: malformed GET request");         //
+            }                                                  //                                        
             int length = (hostend - hostbegin) + 2;            //                                     
             char * host = malloc(sizeof(char)*(length));       //                                          
-            bzero(host,length);                                //                 
+            bzero(host,length);                                //
+            *hostend = 0;                                      //
+            strcat(inbuffer,"\r\n");                           //                 
             strlcpy(host, hostbegin, length-1);                //                                 
             char * portstr = strstr(host, ":");                //                                 
             if (portstr == NULL)                               //                  
                 portstr = "80";                                //                 
             else{                                              //   
-                portstr[0] = 0;                                //                 
+                *portstr = 0;                                  //                 
                 portstr += 1;                                  //               
-            } 
-            char * toRemove = strstr(inbuffer, "http");
-            hostend = strstr(inbuffer, host) + length - 2;
-            for(toRemove; toRemove<hostend; toRemove++)
-                *toRemove = 0;
-            length = strlen(inbuffer)+
-                strlen(toRemove)+1;
-            char * request = malloc(strlen(inbuffer)+
-                strlen(toRemove)+1);
-            bzero(request, length);
-            strcpy(request, inbuffer);
-            strcat(request, toRemove);
-
-                                                             //
-            // End Parsing //////////////////////////////////////                                                
+            }                                                  //
+            char * toRemove = strstr(inbuffer, "http");        //                                         
+            hostend = strstr(inbuffer, host) + length - 2;     //                                            
+            for(toRemove; toRemove<hostend; toRemove++)        //                                         
+                *toRemove = 0;                                 //                
+            length = strlen(inbuffer)+                         //                        
+                strlen(toRemove)+1;                            //                     
+            char * request = malloc(length);                   //                              
+            bzero(request, length);                            //                     
+            strcpy(request, inbuffer);                         //                        
+            strcat(request, toRemove);                         //                        
+            strcat(request, "\r\n");                           //                      
+            char * protocol = strstr(request, "HTTP/1.1");     //                                            
+            if (protocol != NULL)                              //                   
+                *(protocol+7) = '0';                           //                      
+                                                               //
+////////////// End Parsing //////////////////////////////////////                                                
             
             printf("Host: %s\n", host);
             printf("Port: %s\n", portstr);
-            printf("Request: [%s]\n",request); 
-            websocket = proxyclient(host, portstr); 
-            n = write(websocket, request, strlen(request+1)); 
-            //websocket = proxyclient("www.google.com", "80");
-            //n = write(websocket, "GET / HTTP/1.1", 14);
+            printf("Request: [%s]",request); 
+
+// Old Way --> //websock = proxyclient(host, portstr);
+////////////// Client Socket <- debugging attempt ///////////////
+            int websock=0, portno=0, n=0;                      //                                   
+            struct sockaddr_in host_addr;                      //                                   
+            struct hostent *server;                            //                             
+            bzero((char *) &host_addr, sizeof(host_addr));     //                                                    
+                                                               //  
+            server = gethostbyname(host);                      //
+            //// Debugging ////////////////////////////        //
+            printf("Hostname: %s\n", server->h_name);//        //translate the host name into an address
+            ///////////////////////////////////////////        //
+            if (server == NULL)                                //   
+                error("ERROR, no such host\n");                //                   
+            portno = atoi(portstr);                            //get the port number
+            websock = socket(AF_INET, SOCK_STREAM, 0);         //create a generic socket
+            if (websock < 0)                                   //
+                error("ERROR opening socket");                 //                  
+            host_addr.sin_family = AF_INET;                    //it's an internet type
+            bcopy((char *)server->h_addr,                      //make sure we connect with the IP not name
+                (char *)&host_addr.sin_addr.s_addr,            //                       
+                server->h_length);                             //      
+            host_addr.sin_port = htons(portno);                //port numbers should be in network byte order
+            if (connect(websock,                               //connect socket to
+                (struct sockaddr *) &host_addr,                //the server address (bind)
+                sizeof(host_addr))                             //of this length
+                < 0)                                           //              
+                error("ERROR connecting");                     //                                    
+////////////// End Client Socket ////////////////////////////////
+            //////Debugging/////////
+            //bzero(request, length);
+            //sprintf(request, "GET /~c_meijer/assign4/ HTTP/1.0\r\nHost: 140.184.193.164\r\n\r\n");
+            //printf("Request: [%s]",request);
+            /////////////////////////////
+
+            n = write(websock, request, strlen(request+1)); 
+            printf("Number of Bytes Sent: %i\n", n);
             if (n < 0)
                 error("ERROR sending request"); 
             //while(1)
-            //{                            // and dump it to string
-            n = read(websocket,outbuffer,strlen(outbuffer+1));                 // then send it back
+            //{                 
+            n = read(websock,outbuffer,strlen(outbuffer+1));            
             if (n < 0)
                 error("ERROR getting response");
+            printf("Number of Bytes Received: %i\n", n);
             printf("Received: [%s]\n",outbuffer);
-            //}                               // dump back what we are just send back
-            close(newsockfd);                                                   // close accepted socket                                                     // close listener socket
-            return EXIT_SUCCESS;                                                   // then get out
+            //}                               
+            close(newsockfd);                                                                         
+            return EXIT_SUCCESS;                                                   
         } else if (pID < 0)
             error("Error on forking");
-        else close(newsockfd);
+////////// Parent ////////////////////
+        else close(newsockfd);      //
+//////////////////////////////////////    
     }
 }
