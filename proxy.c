@@ -61,11 +61,11 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in serv_addr;
     struct sockaddr_in cli_addr;
     char inbuffer[80000];
-    char outbuffer[200000];
+    char outbuffer[300000];
     int n = 0; 
                                                                   
     bzero(inbuffer,80000);                           // zero out input buffer
-    bzero(outbuffer,200000);                         // set up response buffer
+    bzero(outbuffer,300000);                         // set up response buffer
     bzero((char *) &serv_addr, sizeof(serv_addr));  // zero out server address
 
     if (argc < 2)
@@ -83,10 +83,9 @@ int main(int argc, char *argv[]) {
             < 0)                                    // check response code
         error("ERROR on binding");
 ////// End Setup /////////////////////////////////////////
-    
+    listen(sockfd,5);
     while(1)
     {
-        listen(sockfd,5);
                                                        // block and wait for a new connection from a client
         clilen = sizeof(cli_addr);                     // get address of client
         newsockfd = accept(sockfd,                     // translate the connection request into a new socket
@@ -137,15 +136,15 @@ int main(int argc, char *argv[]) {
             strcpy(request, inbuffer);                         //                        
             strcat(request, toRemove);                         //                        
             //strcat(request, "\r\n");                           //                      
-            char * protocol = strstr(request, "HTTP/1.1");     //                                            
-            if (protocol != NULL)                              //                   
-                *(protocol+7) = '0';                           //                      
+            //char * protocol = strstr(request, "HTTP/1.1");     //                                            
+            //if (protocol != NULL)                              //                   
+                //*(protocol+7) = '0';                           //                      
                                                                //
 ////////////// End Parsing //////////////////////////////////////                                                
             
-            printf("Host: %s\n", host);
-            printf("Port: %s\n", portstr);
-            printf("Request: [%s]",request); 
+            //printf("Host: %s\n", host);
+            //printf("Port: %s\n", portstr);
+            printf("Request: \n[%s]",request); 
 
 // Old Way --> //websock = proxyclient(host, portstr);
 ////////////// Client Socket <- debugging attempt ///////////////
@@ -155,11 +154,9 @@ int main(int argc, char *argv[]) {
             bzero((char *) &host_addr, sizeof(host_addr));     //                                                    
                                                                //  
             server = gethostbyname(host);                      //
-            //// Debugging ////////////////////////////        //
-            printf("Hostname: %s\n", server->h_name);//        //translate the host name into an address
-            ///////////////////////////////////////////        //
             if (server == NULL)                                //   
                 error("ERROR, no such host\n");                //                   
+            
             portno = atoi(portstr);                            //get the port number
             websock = socket(AF_INET, SOCK_STREAM, 0);         //create a generic socket
             if (websock < 0)                                   //
@@ -182,23 +179,25 @@ int main(int argc, char *argv[]) {
             //printf("Request: [%s]",request);
             /////////////////////////////
 
-            n = write(websock, request, strlen(request)+1); 
-            printf("Number of Bytes Sent: %i\n", n);
-            printf("Expected: %lu\n", strlen(request));
+            n = write(websock, request, strlen(request)+1);
+            free(request); 
+            //printf("Number of Bytes Sent: %i\n", n);
+            //printf("Expected: %lu\n", strlen(request));
             if (n < 0)
                 error("ERROR sending request"); 
             //while(1)
             //{                 
-            n = read(websock,outbuffer,199999);            
+            n = read(websock,outbuffer,299999);            
             if (n < 0)
                 error("ERROR getting response");
             close(websock); 
-            printf("Number of Bytes Received: %i\n", n);
-            printf("Received: [%s]\n",outbuffer);
+            //printf("Number of Bytes Received: %i\n", n);
+            printf("Received: \n[%s]\n",outbuffer);
 
             //}    
-            n = write(newsockfd, outbuffer, 200000); 
-            printf("Number of Bytes to Client: %i\n", n);                   
+            n = write(newsockfd, outbuffer, 300000); 
+            bzero(outbuffer, 300000);
+            //printf("Number of Bytes to Client: %i\n", n);                   
             close(newsockfd);                                                                        
             return EXIT_SUCCESS;                                                   
         } else if (pID < 0)
