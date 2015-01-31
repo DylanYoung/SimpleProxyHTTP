@@ -55,17 +55,17 @@ int main(int argc, char *argv[]) {
 ////// Setup Proxy to Listen for Connections /////////////
     int sockfd = 0;
     int newsockfd = 0;
-    //int websock = 0;
+    int websock = 0;
     int portno = 0;
     socklen_t clilen;
     struct sockaddr_in serv_addr;
     struct sockaddr_in cli_addr;
     char inbuffer[80000];
-    char outbuffer[300000];
+    char outbuffer[80000];
     int n = 0; 
                                                                   
     bzero(inbuffer,80000);                           // zero out input buffer
-    bzero(outbuffer,300000);                         // set up response buffer
+    bzero(outbuffer,80000);                         // set up response buffer
     bzero((char *) &serv_addr, sizeof(serv_addr));  // zero out server address
 
     if (argc < 2)
@@ -109,7 +109,8 @@ int main(int argc, char *argv[]) {
             {       //                                         // 
                 close(newsockfd);                              //
                 error("ERROR: malformed GET request");         //
-            }                                                  //                                        
+            }         
+            //*(hostend+2) = 0;                                         //                                        
             int length = (hostend - hostbegin) + 2;            //                                     
             char * host = malloc(sizeof(char)*(length));       //                                          
             bzero(host,length);                                //
@@ -121,9 +122,14 @@ int main(int argc, char *argv[]) {
             {
                 portstr = malloc(sizeof(char)*3);              //                  
                 strcpy(portstr, "80\0");                       //                 
-            }else{                                             //   
+            }else{                                        //   
                 *portstr = 0;                                  //                 
-                portstr += 1;                                  //               
+                portstr += sizeof(char)*1; 
+                char * porttemp = malloc(
+                    sizeof(char)*(host+length-portstr)
+                    );
+                strcpy(porttemp,portstr);
+                portstr = porttemp;                                //               
             }                                                  //
             char * toRemove = strstr(inbuffer, "http");        //                                         
             hostend = strstr(inbuffer, host) + length - 2;     //                                            
@@ -135,69 +141,35 @@ int main(int argc, char *argv[]) {
             bzero(request, 80000);                             //                     
             strcpy(request, inbuffer);                         //                        
             strcat(request, toRemove);                         //                        
-            //strcat(request, "\r\n");                           //                      
-            //char * protocol = strstr(request, "HTTP/1.1");     //                                            
-            //if (protocol != NULL)                              //                   
-                //*(protocol+7) = '0';                           //                      
+            //strcat(request, "\r\n");                         //                      
+            char * protocol = strstr(request, "HTTP/1.1");     //                                            
+            if (protocol != NULL)                              //                   
+                *(protocol+7) = '0';                           // HTTP 1.0 request                      
                                                                //
 ////////////// End Parsing //////////////////////////////////////                                                
             
-            //printf("Host: %s\n", host);
-            //printf("Port: %s\n", portstr);
+            printf("Host: %s\n", host);
+            printf("Port: %s\n", portstr);
             printf("Request: \n[%s]",request); 
 
-// Old Way --> //websock = proxyclient(host, portstr);
-////////////// Client Socket <- debugging attempt ///////////////
-            int websock=0, portno=0, n=0;                      //                                   
-            struct sockaddr_in host_addr;                      //                                   
-            struct hostent *server;                            //                             
-            bzero((char *) &host_addr, sizeof(host_addr));     //                                                    
-                                                               //  
-            server = gethostbyname(host);                      //
-            if (server == NULL)                                //   
-                error("ERROR, no such host\n");                //                   
-            
-            portno = atoi(portstr);                            //get the port number
-            websock = socket(AF_INET, SOCK_STREAM, 0);         //create a generic socket
-            if (websock < 0)                                   //
-                error("ERROR opening socket");                 //                  
-            host_addr.sin_family = AF_INET;                    //it's an internet type
-            bcopy((char *)server->h_addr,                      //make sure we connect with the IP not name
-                (char *)&host_addr.sin_addr.s_addr,            //                       
-                server->h_length);                             //      
-            host_addr.sin_port = htons(portno);                //port numbers should be in network byte order
-            if (connect(websock,                               //connect socket to
-                (struct sockaddr *) &host_addr,                //the server address (bind)
-                sizeof(host_addr))                             //of this length
-                < 0)                                           //              
-                error("ERROR connecting");                     //                                    
-////////////// End Client Socket ////////////////////////////////
+            websock = proxyclient(host, portstr);
             free(portstr);
-            //////Debugging/////////
-            //bzero(request, length);
-            //sprintf(request, "GET /~c_meijer/assign4/ HTTP/1.0\r\nHost: 140.184.193.164\r\n\r\n");
-            //printf("Request: [%s]",request);
-            /////////////////////////////
+            free(host);
 
             n = write(websock, request, strlen(request)+1);
             free(request); 
-            //printf("Number of Bytes Sent: %i\n", n);
-            //printf("Expected: %lu\n", strlen(request));
             if (n < 0)
                 error("ERROR sending request"); 
-            //while(1)
-            //{                 
-            n = read(websock,outbuffer,299999);            
+
+            char outbuffer[80000];
+            bzero(outbuffer, 80000);
+            n = read(websock,outbuffer,80000);            
             if (n < 0)
                 error("ERROR getting response");
             close(websock); 
-            //printf("Number of Bytes Received: %i\n", n);
-            printf("Received: \n[%s]\n",outbuffer);
 
-            //}    
-            n = write(newsockfd, outbuffer, 300000); 
-            bzero(outbuffer, 300000);
-            //printf("Number of Bytes to Client: %i\n", n);                   
+            n = write(newsockfd, outbuffer, 80000); 
+            bzero(outbuffer, 80000);                  
             close(newsockfd);                                                                        
             return EXIT_SUCCESS;                                                   
         } else if (pID < 0)
