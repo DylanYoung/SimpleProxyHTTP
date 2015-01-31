@@ -117,19 +117,14 @@ int main(int argc, char *argv[]) {
                                                                //
                                                                //                 
             strlcpy(host, hostbegin, length-1);                //                                 
-            char * portstr = strstr(host, ":");                //                                 
-            if (portstr == NULL)
-            {
-                portstr = malloc(sizeof(char)*3);              //                  
+            char * porttemp = strstr(host, ":");
+            char * portstr = malloc(sizeof(char)*6);                //                                 
+            if (porttemp == NULL)                
                 strcpy(portstr, "80\0");                       //                 
-            }else{                                        //   
-                *portstr = 0;                                  //                 
-                portstr += sizeof(char)*1; 
-                char * porttemp = malloc(
-                    sizeof(char)*(host+length-portstr)
-                    );
-                strcpy(porttemp,portstr);
-                portstr = porttemp;                                //               
+            else{                                        //   
+                *porttemp = 0;                                  //                 
+                porttemp += sizeof(char)*1; 
+                strcpy(portstr,porttemp);                            //               
             }                                                  //
             char * toRemove = strstr(inbuffer, "http");        //                                         
             hostend = strstr(inbuffer, host) + length - 2;     //                                            
