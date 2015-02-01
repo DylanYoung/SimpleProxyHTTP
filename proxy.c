@@ -2,9 +2,9 @@
  =====================================================================
  Name        : proxy.c
  Author      : Casey Meijer -- A00337010
- Version     : 0.0.1
+ Version     : 1.0.0
  License     : MIT
- Description : A simple proxy in the internet domain using TCP
+ Description : A simple HTTP 1.0 proxy in the internet domain using TCP
                The port number is passed as an argument.
 
  =====================================================================
