@@ -90,7 +90,7 @@ int parse(char * request,
     *host = malloc(sizeof(char)*(length));       //                                          
     bzero(*host,length);                                //
                                                        //                                                       //                 
-    strlcpy(*host, hostbegin, length-1);                //                                 
+    strncpy(*host, hostbegin, length-1);                //                                 
     char * porttemp = strstr(*host, ":");         //                                 
     if (porttemp == NULL)                
         strcpy(portstr, "80\0");                       //                 
