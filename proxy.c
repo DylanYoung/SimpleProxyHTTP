@@ -52,14 +52,14 @@ int proxyserver(char * portstr)
     return sockfd;
 }
 
-int proxyclient(char * host, char * portstr)
+int proxyclient(char ** host, char * portstr)
 {
     int websock=0, portno=0, n=0;
     struct sockaddr_in host_addr;
     struct hostent *server;
     bzero((char *) &host_addr, sizeof(host_addr));
 
-    server = gethostbyname(host);              // translate the host name into an address
+    server = gethostbyname(*host);              // translate the host name into an address
     if (server == NULL)
         error("ERROR, no such host\n");
     portno = atoi(portstr);                    // get the port number
@@ -95,7 +95,7 @@ int parse(char * request,
     if (porttemp == NULL)                
         strcpy(portstr, "80\0");                       //                 
     else{                                             //   
-        *porttemp = 0;                                 //                 
+        *porttemp = '\0';                                 //                 
         porttemp += sizeof(char)*1; 
         strcpy(portstr,porttemp);                      //               
     }                                                  //
@@ -143,12 +143,9 @@ int main(int argc, char *argv[]) {
 
     listen(sockfd,5);
  
-    while(newsockfd>=0)
+    while( (newsockfd = accept(sockfd,                    
+            (struct sockaddr *) &cli_addr, &clilen)) )
     {           
-        newsockfd = accept(sockfd,                     // translate the connection request into a new socket
-                        (struct sockaddr *) &cli_addr, 
-                        &clilen);
-
         pid_t pID = fork();
 ////////// Child (move to transmit function??) ////
         if (pID == 0)
@@ -156,37 +153,45 @@ int main(int argc, char *argv[]) {
             close(sockfd);
             if (newsockfd < 0)
                  error("ERROR on accept");
-            n = read(newsockfd,request,80000); 
-            if (n < 0)
-                error("ERROR reading from socket");
-        
-            if (parse(request, &host, portstr)<0){
-                close(newsockfd);
-                error("ERROR: malformed GET request");     
-            }   
-            
-            //printf("Host: %s\n", host);
-            //printf("Port: %s\n", portstr);
-            //printf("Request: \n[%s]",request); 
+            while ( (n = read(newsockfd,request,80000)) )
+            { 
+                if (n < 0)
+                    error("ERROR reading from socket");
+                if (parse(request, &host, portstr)<0){
+                    close(newsockfd);
+                    error("ERROR: malformed GET request");     
+                }
+            struct hostent *server;
+            server = gethostbyname(host);              // translate the host name into an address
+    if (server == NULL){
+            printf("Host: %s\n", host);
+            printf("Port: %s\n", portstr);
+            printf("Request: \n[%s]",request); 
+    }           
+                websock = proxyclient(&host, portstr);
+                free(host);
 
-            websock = proxyclient(host, portstr);
-            free(host);
-            if (websock < 0){
-                error("ERROR connecting");
-            }
-
-            n = write(websock, request, strlen(request)+1);
-
-            if (n < 0)
-                error("ERROR sending request"); 
-
-            n = read(websock,response,80000);           
-            if (n < 0)
-                error("ERROR getting response");
-            close(websock); 
  
-            n = write(newsockfd, response, 80000);                 
-            close(newsockfd);  
+               if (websock < 0){
+                    close(newsockfd);
+                    error("ERROR connecting");
+                }
+
+                n = write(websock, request, strlen(request)+1);
+
+                if (n < 0)
+                    error("ERROR sending request"); 
+
+                n = read(websock,response,80000);           
+                if (n < 0){
+                    close(newsockfd); close(websock);
+                    error("ERROR getting response");
+                }
+                close(websock); 
+ 
+                n = write(newsockfd, response, 80000);
+            }                 
+                close(newsockfd);  
 
             exit(EXIT_SUCCESS);
 
