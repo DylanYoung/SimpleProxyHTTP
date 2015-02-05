@@ -88,9 +88,10 @@ int parse(char * request,
         return -1;      
     int length = (hostend - hostbegin) + 2;            //                                     
     *host = malloc(sizeof(char)*(length));       //                                          
-    bzero(*host,length);                                //
-                                                       //                                                       //                 
-    strncpy(*host, hostbegin, length-1);                //                                 
+    memset(*host,'\0',sizeof(char)*(length));                                //
+    *hostend = '\0';                                                   //                                                       //                 
+    strcpy(*host, hostbegin);
+    *hostend = '\r';                                
     char * porttemp = strstr(*host, ":");         //                                 
     if (porttemp == NULL)                
         strcpy(portstr, "80\0");                       //                 
@@ -161,13 +162,10 @@ int main(int argc, char *argv[]) {
                     close(newsockfd);
                     error("ERROR: malformed GET request");     
                 }
-            struct hostent *server;
-            server = gethostbyname(host);              // translate the host name into an address
-    if (server == NULL){
+
             printf("Host: %s\n", host);
             printf("Port: %s\n", portstr);
-            printf("Request: \n[%s]",request); 
-    }           
+            printf("Request: \n[%s]",request);         
                 websock = proxyclient(&host, portstr);
                 free(host);
 
