@@ -42,7 +42,7 @@ int parse(char * request,
     }
     replace_str(request, "http://", "");
     replace_str(request, *host, "");
-    repl_tween_str(request, "Accept-Encoding: ", "\r\n", "");
+    // repl_tween_str(request, "Accept-Encoding: ", "\r\n", "");
     // Simplify the request for debugging
     //repl_tween_str(request, *host, "\r\n\r\n", "");
     char * protocol = strstr(request, "HTTP/1.1");
