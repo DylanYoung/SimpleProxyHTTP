@@ -20,7 +20,6 @@
 //#include <fcntl.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <time.h>
 
 int parse(char * request, 
             char ** host, char * portstr) {
