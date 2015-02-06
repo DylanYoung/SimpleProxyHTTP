@@ -164,23 +164,76 @@ int parse(char * request,
     return 0;
 }
 
-//int transmit(int newsockfd){
-
-//}
-
-int main(int argc, char *argv[]) {
-    // Setup Variables
-    int sockfd = 0, newsockfd = 0, websock = 0;
+int relay(int newsockfd){
+    int websock = 0;
     char request[80000], response[80000], portstr[6];
-    struct sockaddr_in cli_addr;
-    socklen_t clilen = sizeof(cli_addr);
     char * host;
     int n = 0; 
-    
+
     // Zero things out
     memset(request,0,80000);
     memset(response,0,80000);
     memset(portstr,0, 6);
+
+    n = read(newsockfd,request,80000); 
+    if (n<0){
+        close(newsockfd);
+        error("ERROR reading from socket");
+    }
+
+    // Handle the possibility of split requests
+    size_t req_len;
+    for(req_len = n
+            ; strstr(request,"\r\n\r\n") == NULL
+            ; req_len+=n){
+        n = read(newsockfd,
+                    request+req_len,
+                        80000-req_len);
+    }
+//printf("OriginalRequest: \n[%s]",request); 
+
+    // Parse request
+    if (parse(request, &host, portstr)<0){
+        close(newsockfd);
+        error("ERROR: malformed GET request");
+    }
+
+//printf("Host: %s\n", host);
+//printf("Port: %s\n", portstr);
+//printf("Request: \n[%s]",request);         
+    websock = proxyclient(&host, portstr);
+    free(host);
+    if (websock < 0){
+        close(newsockfd);
+        error("ERROR connecting");
+    }
+
+    n = write(websock, request, strlen(request)+1);
+    if (n < 0){
+        close(newsockfd); close(websock);
+        error("ERROR sending request");
+    } 
+
+    while(n = read(websock,response,79999), n)
+    {           
+        if (n < 0){
+            close(newsockfd); close(websock);
+            error("ERROR getting response");
+        }
+        n = write(newsockfd, response, n);
+//printf("Response: \n[%s]",response); 
+    }
+    close(newsockfd);  
+    return(EXIT_SUCCESS);
+}
+
+int main(int argc, char *argv[]) {
+    // Setup Variables
+    int sockfd = 0, newsockfd = 0;
+    struct sockaddr_in cli_addr;
+    socklen_t clilen = sizeof(cli_addr);
+    
+
 
     // Verify args are present
     if (argc < 2)
@@ -204,60 +257,7 @@ int main(int argc, char *argv[]) {
         if (pID == 0)
         {
             close(sockfd);
-
-            n = read(newsockfd,request,80000); 
-                if (n<0){
-                    close(newsockfd);
-                    error("ERROR reading from socket");
-                }
-
-                size_t req_len;
-                for(req_len = n
-                        ; strstr(request,"\r\n\r\n") == NULL
-                        ; req_len+=n){
-                    n = read(newsockfd,
-                                request+req_len,
-                                    80000-req_len);
-                }
-
-        //printf("OriginalRequest: \n[%s]",request); 
-                if (parse(request, &host, portstr)<0){
-                    close(newsockfd);
-                    error("ERROR: malformed GET request");
-                }
-
-        //printf("Host: %s\n", host);
-        //printf("Port: %s\n", portstr);
-        //printf("Request: \n[%s]",request);         
-                websock = proxyclient(&host, portstr);
-                free(host);
-
- 
-               if (websock < 0){
-                    close(newsockfd);
-                    error("ERROR connecting");
-                }
-
-                n = write(websock, request, strlen(request)+1);
-                if (n < 0)
-                    error("ERROR sending request"); 
-
-                while(n = read(websock,response,79999), n)
-                {           
-                    if (n < 0){
-                        close(newsockfd); close(websock);
-                        error("ERROR getting response");
-                    }
-    exit(EXIT_SUCCESS);
-}
-                    n = write(newsockfd, response, n);
-        //printf("Response: \n[%s]",response); 
-                }
-                close(sockfd);                 
-                close(newsockfd);  
-
-            exit(EXIT_SUCCESS);
-
+            exit(relay(newsockfd));
 ////////// Error Forking ///////////////////////////
         } else if (pID < 0){
             close(sockfd);            
@@ -266,3 +266,5 @@ int main(int argc, char *argv[]) {
         }else close(newsockfd); 
     }
     close(sockfd);
+    exit(EXIT_SUCCESS);
+}
