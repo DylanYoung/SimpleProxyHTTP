@@ -17,7 +17,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-//#include <fcntl.h>
 #include <netinet/in.h>
 #include <netdb.h>
 
@@ -124,10 +123,6 @@ int relay(int newsockfd){
             close(newsockfd); close(websock);
             error("ERROR getting response");
         }
-        //int flags = fcntl(websock, F_GETFL, 0);
-        //if (flags == -1)
-        //   error("ERROR setting non-blocking");
-        //fcntl(websock, F_SETFL, flags | O_NONBLOCK);
         n = write(newsockfd, response, n);
 //printf("Response: \n[%s]",response); 
     }
