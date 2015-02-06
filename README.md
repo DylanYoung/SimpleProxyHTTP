@@ -1,11 +1,11 @@
 # Simple HTTP 1.0 Proxy
 
 ## Compilation
-`bash
+```bash
 cd src
 gcc proxy.c setup.c strlib.c -o proxy.exe
-`
+```
 ## Run
-`bash
+```bash
 ./proxy.exe $PORTNUM
-`
+```
