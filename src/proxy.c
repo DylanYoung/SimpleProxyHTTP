@@ -42,9 +42,9 @@ int parse(char * request,
     }
     replace_str(request, "http://", "");
     replace_str(request, *host, "");
-    // repl_tween_str(request, "Accept-Encoding: ", "\r\n", "");
-    // Simplify the request for debugging
-    //repl_tween_str(request, *host, "\r\n\r\n", "");
+    #ifdef DEBUG
+        repl_tween_str(request, "Accept-Encoding: ", "\r\n", "");
+    #endif
     char * protocol = strstr(request, "HTTP/1.1");
     if (protocol != NULL)
         *(protocol+7) = '0'; // HTTP 1.0 request   
@@ -61,7 +61,6 @@ int relay(int newsockfd){
     //Receive Timeout - 5 sec
     struct timeval tv;
         tv.tv_sec = 5;
-        // Not init'ing this can cause strange errors
         tv.tv_usec = 0;
 
     // Zero things out
@@ -91,17 +90,21 @@ int relay(int newsockfd){
                 error("ERROR reading from socket");
             }
         }
-//printf("OriginalRequest: \n[%s]",request); 
+        #ifdef DEBUG  
+            printf("Original Request: \n{BEGIN}\n%s\n{END}\n",request);  
+        #endif       
+
 
         // Parse request
         if (parse(request, &host, portstr)<0){
             close(newsockfd);
             error("ERROR: malformed GET request");
         }
-    
-//printf("Host: %s\n", host);
-//printf("Port: %s\n", portstr);
-//printf("Request: \n[%s]",request);         
+        #ifdef DEBUG  
+            printf("Host: %s\n", host);
+            printf("Port: %s\n", portstr);
+            printf("Parsed Request: \n{BEGIN}\n%s\n{END}\n",request);  
+        #endif       
         websock = proxyclient(&host, portstr);
         free(host);
         setsockopt(websock, SOL_SOCKET, SO_RCVTIMEO, 
@@ -125,7 +128,9 @@ int relay(int newsockfd){
                 error("ERROR getting response");
             }
             n = write(newsockfd, response, n);
-//printf("Response: \n[%s]",response); 
+            #ifdef DEBUG
+                printf("Response: \n{BEGIN}\n%s\n{END}\n",response);
+            #endif
         }
     }
     close(newsockfd);  
@@ -138,11 +143,16 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in cli_addr;
     socklen_t clilen = sizeof(cli_addr);
     
-    // Verify args are present
-    if (argc < 2)
-        error("ERROR, no port provided");
+    #ifdef DEBUG
+        sockfd = proxyserver("12345");
+    #else
+        // Verify args are present
+        if (argc < 2)
+            error("ERROR, no port provided");
+        sockfd = proxyserver(argv[1]);
+    #endif
 
-    sockfd = proxyserver(argv[1]); 
+ 
     if (sockfd < 0){
         error("ERROR on binding");
     }
