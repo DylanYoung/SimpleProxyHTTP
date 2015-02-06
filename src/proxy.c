@@ -17,8 +17,10 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+//#include <fcntl.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <time.h>
 
 int parse(char * request, 
             char ** host, char * portstr) {
@@ -58,12 +60,19 @@ int relay(int newsockfd){
     char * host;
     int n = 0; 
 
+    //Receive Timeout - 5 sec
+    struct timeval tv;
+        tv.tv_sec = 5;
+        // Not init'ing this can cause strange errors
+        tv.tv_usec = 0;
+
     // Zero things out
     memset(request,0,80000);
     memset(response,0,80000);
     memset(portstr,0, 6);
-
-    n = read(newsockfd,request,80000); 
+    setsockopt(newsockfd, SOL_SOCKET, SO_RCVTIMEO, 
+            (char *)&tv,sizeof(struct timeval));
+    n = recv(newsockfd,request,80000,0); 
     if (n<0){
         close(newsockfd);
         error("ERROR reading from socket");
@@ -73,10 +82,15 @@ int relay(int newsockfd){
     size_t req_len;
     for(req_len = n
             ; strstr(request,"\r\n\r\n") == NULL
+            && req_len < 80000 && n
             ; req_len+=n){
-        n = read(newsockfd,
+        n = recv(newsockfd,
                     request+req_len,
-                        80000-req_len);
+                        80000-req_len,0);
+        if (n<0){
+            close(newsockfd);
+            error("ERROR reading from socket");
+        }
     }
 //printf("OriginalRequest: \n[%s]",request); 
 
@@ -91,6 +105,9 @@ int relay(int newsockfd){
 //printf("Request: \n[%s]",request);         
     websock = proxyclient(&host, portstr);
     free(host);
+    setsockopt(websock, SOL_SOCKET, SO_RCVTIMEO, 
+                (char *)&tv,sizeof(struct timeval));
+
     if (websock < 0){
         close(newsockfd);
         error("ERROR connecting");
@@ -102,12 +119,16 @@ int relay(int newsockfd){
         error("ERROR sending request");
     } 
 
-    while(n = read(websock,response,79999), n)
+    while(n = recv(websock,response,79999, 0), n)
     {           
         if (n < 0){
             close(newsockfd); close(websock);
             error("ERROR getting response");
         }
+        //int flags = fcntl(websock, F_GETFL, 0);
+        //if (flags == -1)
+        //   error("ERROR setting non-blocking");
+        //fcntl(websock, F_SETFL, flags | O_NONBLOCK);
         n = write(newsockfd, response, n);
 //printf("Response: \n[%s]",response); 
     }
@@ -139,7 +160,7 @@ int main(int argc, char *argv[]) {
         if (newsockfd < 0)
             error("ERROR on accept");
         pid_t pID = fork();
-////////// Child (move to transmit function??) ////
+////////// Child ////
         if (pID == 0)
         {
             close(sockfd);
