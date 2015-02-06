@@ -70,61 +70,63 @@ int relay(int newsockfd){
     memset(portstr,0, 6);
     setsockopt(newsockfd, SOL_SOCKET, SO_RCVTIMEO, 
             (char *)&tv,sizeof(struct timeval));
-    n = recv(newsockfd,request,80000,0); 
-    if (n<0){
-        close(newsockfd);
-        error("ERROR reading from socket");
-    }
-
-    // Handle the possibility of split requests
-    size_t req_len;
-    for(req_len = n
-            ; strstr(request,"\r\n\r\n") == NULL
-            && req_len < 80000 && n
-            ; req_len+=n){
-        n = recv(newsockfd,
-                    request+req_len,
-                        80000-req_len,0);
+    while((n = recv(newsockfd,request,80000,0)), n) 
+    {
         if (n<0){
             close(newsockfd);
             error("ERROR reading from socket");
         }
-    }
+    
+        // Handle the possibility of split requests
+        size_t req_len;
+        for(req_len = n
+                ; strstr(request,"\r\n\r\n") == NULL
+                && req_len < 80000 && n
+                ; req_len+=n){
+            n = recv(newsockfd,
+                        request+req_len,
+                            80000-req_len,0);
+            if (n<0){
+                close(newsockfd);
+                error("ERROR reading from socket");
+            }
+        }
 //printf("OriginalRequest: \n[%s]",request); 
 
-    // Parse request
-    if (parse(request, &host, portstr)<0){
-        close(newsockfd);
-        error("ERROR: malformed GET request");
-    }
-
+        // Parse request
+        if (parse(request, &host, portstr)<0){
+            close(newsockfd);
+            error("ERROR: malformed GET request");
+        }
+    
 //printf("Host: %s\n", host);
 //printf("Port: %s\n", portstr);
 //printf("Request: \n[%s]",request);         
-    websock = proxyclient(&host, portstr);
-    free(host);
-    setsockopt(websock, SOL_SOCKET, SO_RCVTIMEO, 
-                (char *)&tv,sizeof(struct timeval));
+        websock = proxyclient(&host, portstr);
+        free(host);
+        setsockopt(websock, SOL_SOCKET, SO_RCVTIMEO, 
+                    (char *)&tv,sizeof(struct timeval));
 
-    if (websock < 0){
-        close(newsockfd);
-        error("ERROR connecting");
-    }
+        if (websock < 0){
+            close(newsockfd);
+            error("ERROR connecting");
+        }
 
-    n = write(websock, request, strlen(request)+1);
-    if (n < 0){
-        close(newsockfd); close(websock);
-        error("ERROR sending request");
-    } 
-
-    while(n = recv(websock,response,79999, 0), n)
-    {           
+        n = write(websock, request, strlen(request)+1);
         if (n < 0){
             close(newsockfd); close(websock);
-            error("ERROR getting response");
-        }
-        n = write(newsockfd, response, n);
+            error("ERROR sending request");
+        } 
+
+        while(n = recv(websock,response,79999, 0), n)
+        {           
+            if (n < 0){
+                close(newsockfd); close(websock);
+                error("ERROR getting response");
+            }
+            n = write(newsockfd, response, n);
 //printf("Response: \n[%s]",response); 
+        }
     }
     close(newsockfd);  
     return(EXIT_SUCCESS);
