@@ -23,6 +23,49 @@ void error(const char *msg) {
     exit(1);
 }
 
+/* assert strlen(new) <= strlen(old) */
+char * replace_str(char * source, char * old, char * new)
+{
+    char * start = strstr(source, old);
+    if ( start == NULL || strlen(new) > strlen(old) )
+        return source;
+    size_t difference = strlen(old)-strlen(new);
+    char * rest = start+strlen(old);
+    memcpy(start, new, strlen(new));
+    memmove(start+strlen(new),rest,strlen(rest));
+    memset(source+strlen(source)-difference, 0, difference);
+
+    return source;
+}
+
+char * repl_tween_str(char * source, char * start, char * end, char * new)
+{
+    start = strstr(source, start) + strlen(start);
+    end = strstr(start, end);
+    if(start == NULL || end == NULL)
+        return source;
+    size_t length = end-start;
+    size_t difference = length - strlen(new);
+    if (strlen(new) > length)
+        return source;
+    memcpy(start, new, strlen(new));
+    memmove(start+strlen(new), end, strlen(end));
+    memset(source+strlen(source)-difference, 0, difference);
+    return source;
+}
+
+/* remember to free(result)!!! */
+char * get_tween_str(char * source, char * start, char * end)
+{
+    start = strstr(source, start)+strlen(start);
+    end = strstr(start, end);
+    size_t length = end - start;
+    char * result = malloc((length+1)*sizeof(char));
+    memcpy(result, start, length);
+    memset(result+length+1,0,1);
+    return result;
+}
+
 int proxyserver(char * portstr)
 {
     int sockfd = 0;
@@ -81,34 +124,25 @@ int proxyclient(char ** host, char * portstr)
 int parse(char * request, 
             char ** host, char * portstr) {
 
-    char * hostbegin = strstr(request, "Host:")+ 6;   //                                              
-    char * hostend = strstr(hostbegin, "\r\n");        //                                                                                           
+    char * hostbegin = strstr(request, "Host:");                                                                                           
     if (strstr(request, "GET") == NULL                //                                  
-            || hostbegin == NULL || hostend == NULL)       //
-        return -1;      
-    int length = (hostend - hostbegin) + 2;            //                                     
-    *host = malloc(sizeof(char)*(length));       //                                          
-    memset(*host,'\0',sizeof(char)*(length));                                //
-    *hostend = '\0';                                                   //                                                       //                 
-    strcpy(*host, hostbegin);
-    *hostend = '\r';                                
+            || hostbegin == NULL 
+            || strstr(hostbegin, "\r\n") == NULL)       //
+        return -1;
+     
+    *host = get_tween_str(request, "Host: ", "\r\n");
     char * porttemp = strstr(*host, ":");         //                                 
     if (porttemp == NULL)                
-        strcpy(portstr, "80\0");                       //                 
+        strcpy(portstr, "80");                       //                 
     else{                                             //   
         *porttemp = '\0';                                 //                 
         porttemp += sizeof(char)*1; 
         strcpy(portstr,porttemp);                      //               
-    }                                                  //
-    char * toRemove = strstr(request, "http");        //                                         
-    hostend = strstr(request, *host) + length - 2;     //                                            
-    for(; toRemove<hostend; toRemove++)        //                                         
-        *toRemove = '\0'; 
-    char * temp = malloc(
-            sizeof(char)*strlen(toRemove)+1);                              //                                          //                                                                               //                                             //                        
-    strcpy(temp, toRemove);                            //                                          //                                                                               //                                             //                        
-    strcat(request, temp);
-    free(temp);                       //                                                //                      
+    }
+    replace_str(request, "http://", "");
+    replace_str(request, *host, "");
+    repl_tween_str(request, "Accept-Encoding: ", "\r\n", "");
+    repl_tween_str(request, *host, "\r\n\r\n", "");
     char * protocol = strstr(request, "HTTP/1.1");     //                                            
     if (protocol != NULL)                              //                   
         *(protocol+7) = '0';                           // HTTP 1.0 request   
@@ -129,9 +163,9 @@ int main(int argc, char *argv[]) {
     int n = 0; 
     
     // Zero things out                                                           
-    bzero(request,80000);
-    bzero(response,80000);
-    bzero(portstr, 6);
+    memset(request,0,80000);
+    memset(response,0,80000);
+    memset(portstr,0, 6);
 
     // Verify args are present
     if (argc < 2)
@@ -145,19 +179,20 @@ int main(int argc, char *argv[]) {
     listen(sockfd,5);
  
     while( (newsockfd = accept(sockfd,                    
-            (struct sockaddr *) &cli_addr, &clilen)) )
+            (struct sockaddr *) &cli_addr, &clilen)), newsockfd )
     {           
+        if (newsockfd < 0)
+            error("ERROR on accept");
         pid_t pID = fork();
 ////////// Child (move to transmit function??) ////
         if (pID == 0)
         {
             close(sockfd);
-            if (newsockfd < 0)
-                 error("ERROR on accept");
-            while ( (n = read(newsockfd,request,80000)) )
-            { 
+
+            n = read(newsockfd,request,80000); 
                 if (n < 0)
                     error("ERROR reading from socket");
+                printf("OriginalRequest: \n[%s]",request); 
                 if (parse(request, &host, portstr)<0){
                     close(newsockfd);
                     error("ERROR: malformed GET request");     
@@ -176,19 +211,21 @@ int main(int argc, char *argv[]) {
                 }
 
                 n = write(websock, request, strlen(request)+1);
-
                 if (n < 0)
                     error("ERROR sending request"); 
 
-                n = read(websock,response,80000);           
-                if (n < 0){
-                    close(newsockfd); close(websock);
-                    error("ERROR getting response");
+                while(n = read(websock,response,79999), n)
+                {           
+                    if (n < 0){
+                        close(newsockfd); close(websock);
+                        error("ERROR getting response");
+                    }
+                
+                //response[n]='\0';
+                    n = write(newsockfd, response, n);
+                    printf("Response: \n[%s]",response); 
                 }
-                close(websock); 
- 
-                n = write(newsockfd, response, 80000);
-            }                 
+                close(sockfd);                 
                 close(newsockfd);  
 
             exit(EXIT_SUCCESS);
