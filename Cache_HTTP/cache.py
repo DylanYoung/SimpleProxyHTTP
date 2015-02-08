@@ -2,7 +2,7 @@ from hashlib import md5
 import mmap
 from socket import socket, AF_INET,
  SOCKSTREAM, gethostname, listen, accept, recv, send
-import cPickle as pickle
+import json
 from threading import Thread, Timer, Lock
 from argparse import ArgumentParser
 
@@ -26,14 +26,14 @@ def parseargs():
 		action='store_true'
 	) 
 
-	parser.add_argument(
+	pars.add_argument(
 		'--version', 
 		action='version', 
 		version='%(prog)s 2.0'
 	)
 	
-	parser.add_argument(
-		'--port', 'p',
+	pars.add_argument(
+		'--port', '-p',
 		nargs='?',
 		default=PORT
 		const=PORT
@@ -48,8 +48,8 @@ def serversocket():
 
 def flush(cache):
 	lock.aquire()
-	with open("cache.pickle", '+w') as cache_f:
-		pickle.dump(cache,cache_f)
+	with open("cache.json", '+w') as cache_f:
+		json.dump(cache,cache_f)
 	lock.release()
 
 
@@ -79,11 +79,11 @@ def handlerequest(sock, cache):
 def main():
 
 	args = parseargs()
+	threads = []
 
 	# Load existing cache
-	threads = []
-	with open("cache.pickle",'r') as cache_f:
-		cache = pickle.load(cache_f)
+	with open("cache.json",'r') as cache_f:
+		cache = json.load(cache_f)
 
 
 	serv = serversocket()
