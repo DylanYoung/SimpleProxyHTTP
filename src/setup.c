@@ -56,7 +56,7 @@ int proxyserver(char * portstr)
     return sockfd;
 }
 
-int proxyclient(char ** host, char * portstr)
+int proxyclient(char * host, char * portstr)
 {
     int websock=0, portno=0;
     struct sockaddr_in host_addr;
@@ -64,7 +64,7 @@ int proxyclient(char ** host, char * portstr)
     bzero((char *) &host_addr, sizeof(host_addr));
 
     // translate the host name
-    server = gethostbyname(*host);
+    server = gethostbyname(host);
     if (server == NULL)
         error("ERROR, no such host\n");
     portno = atoi(portstr);
