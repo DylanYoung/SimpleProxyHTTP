@@ -68,7 +68,7 @@ def handlerequest(serv, cache):
 			if len(part) < 0:
 				break;
 			else: request += part;
-		print request
+		print request 
 		"\r\n".join(request.split('\n', 2)[0:1])
 		key = md5.update(request).digest()
 		responses = cache.get(key, [])
