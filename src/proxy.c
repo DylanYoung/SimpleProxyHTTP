@@ -51,23 +51,8 @@ int parse(char * request,
     return 0;
 }
 
-int checkcache(int outsock, char * request, char * response){
-    int cache = 0, n = 0;
-    cache = proxyclient("localhost", "23456");
-    if (cache < 0) return -1;
-    n = send(cache, request, 80000, WAIT_ALL);
-    if (n < 0) {close(cache);return -1;}
-    n = recv(cache, response, 9, WAIT_ALL);
-    if (strcmp(response, "FOUND") != 0))
-        return cache
-    if(relay(cache, outsock, 0, response)<0)
-        return -1;
-    return 0;
-
-
-}
-
 int relay(int insock,int outsock,int altsock, char * response){
+    int n = 0;
     while(n = recv(insock,response,79999, 0), n)
     {           
         if (n < 0){
@@ -75,13 +60,27 @@ int relay(int insock,int outsock,int altsock, char * response){
             if (altsock>0) close(altsock);
             return -1;
         }
-        send(outsock, response, n, WAIT_ALL);
-        if(altsock > 0) n = send(altsock, response, n, WAIT_ALL)
+        send(outsock, response, n, MSG_WAITALL);
+        if(altsock > 0) n = send(altsock, response, n, MSG_WAITALL);
         #ifdef DEBUG
             printf("Response: \n{BEGIN}\n%s\n{END}\n",response);
         #endif
-        return 0;
     }
+    return 0;
+}
+
+int checkcache(int outsock, char * request, char * response){
+    int cache = 0, n = 0;
+    cache = proxyclient("localhost", "23456");
+    if (cache < 0) return -1;
+    n = send(cache, request, 80000, MSG_WAITALL);
+    if (n < 0) {close(cache); return -1;}
+    n = recv(cache, response, 9, MSG_WAITALL);
+    if (strcmp(response, "FOUND") != 0 )
+        return cache;
+    if(relay(cache, outsock, 0, response)<0)
+        return -1;
+    return 0;
 }
 
 int handlerequest(int newsockfd){
@@ -140,19 +139,18 @@ int handlerequest(int newsockfd){
             printf("Parsed Request: \n{BEGIN}\n%s\n{END}\n",request);  
         #endif 
 
-        cache = checkcache(newsockfd, request);
-
-        if (cache != 0)
+        cache = checkcache(newsockfd, request, response);
+        if (cache != 0){
             websock = proxyclient(host, portstr);
             free(host);
             setsockopt(websock, SOL_SOCKET, SO_RCVTIMEO, 
                     (char *)&tv,sizeof(struct timeval));
-
             if (websock < 0){
                 close(newsockfd);
                 error("ERROR connecting");
-
-            n = send(websock, request, strlen(request)+1, WAIT_ALL);
+            }
+            n = send(websock, request, strlen(request)+1, 0);
+            printf("Sent: %i\n", n);
             if (n < 0){
                 close(newsockfd); close(websock);
                 error("ERROR sending request");
