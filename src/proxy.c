@@ -69,17 +69,30 @@ int relay(int insock,int outsock,int altsock, char * response){
     return 0;
 }
 
-int checkcache(int outsock, char * request, char * response){
-    int cache = 0, n = 0;
-    cache = proxyclient("localhost", "23456");
-    if (cache < 0) return -1;
-    n = send(cache, request, 80000, MSG_WAITALL);
+int checkcache(int cache, int outsock, char * request, char * response){
+    int n = 0;
+    //Receive Timeout - 5 sec
+    struct timeval tv;
+        tv.tv_sec = 5;
+        tv.tv_usec = 0;
+    if (cache < 1) {   
+        cache = proxyclient("localhost", "23456");
+        setsockopt(cache, SOL_SOCKET, SO_RCVTIMEO, 
+                    (char *)&tv,sizeof(struct timeval));
+    }
+    if (cache < 1) return -1;
+    n = send(cache, request, 80000, 0);
     if (n < 0) {close(cache); return -1;}
     n = recv(cache, response, 9, MSG_WAITALL);
+    printf("Cache Msg(%i): %s\n",n, response);
     if (strcmp(response, "FOUND") != 0 )
         return cache;
-    if(relay(cache, outsock, 0, response)<0)
-        return -1;
+    relay(cache, outsock, 0, response);
+    if (n < 0) return -1;
+    #ifdef DEBUG
+        printf("\nRESPONSE FROM CACHE\n");
+    #endif
+
     return 0;
 }
 
@@ -139,7 +152,7 @@ int handlerequest(int newsockfd){
             printf("Parsed Request: \n{BEGIN}\n%s\n{END}\n",request);  
         #endif 
 
-        cache = checkcache(newsockfd, request, response);
+        cache = checkcache(cache, newsockfd, request, response);
         if (cache != 0){
             websock = proxyclient(host, portstr);
             free(host);
@@ -149,17 +162,20 @@ int handlerequest(int newsockfd){
                 close(newsockfd);
                 error("ERROR connecting");
             }
-            n = send(websock, request, strlen(request)+1, 0);
-            printf("Sent: %i\n", n);
+            n = send(websock, request, strlen(request)+1, MSG_WAITALL);
             if (n < 0){
                 close(newsockfd); close(websock);
                 error("ERROR sending request");
             } 
-            if(relay(websock, newsockfd, cache, response) < 0)
-                error("ERROR getting response");
+            n = relay(websock, newsockfd, cache, response);
+            if(n < 0) error("ERROR getting response");
+            #ifdef DEBUG
+                printf("\nRESPONSE FROM SERVER\n");
+            #endif
         }
     }
-    close(newsockfd);  
+    close(newsockfd); 
+    close(cache); 
     return(EXIT_SUCCESS);
 }
 
@@ -199,7 +215,8 @@ int main(int argc, char *argv[]) {
             exit(handlerequest(newsockfd));
 ////////// Error Forking ///////////////////////////
         } else if (pID < 0){
-            close(sockfd);            
+            close(sockfd);
+            close(newsockfd);            
             error("Error on forking");
 ////////// Parent //////////////////////////////////
         }else close(newsockfd); 
